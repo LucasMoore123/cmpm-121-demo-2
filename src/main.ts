@@ -36,6 +36,8 @@ const cursor = { active: false, x: 0, y: 0 };
 
 const drawingChangedEvent = new Event("drawing-changed");
 const clearEvent = new Event("clear");
+const undoEvent = new Event("undo");
+const redoEvent = new Event("redo");
 
 canvas.addEventListener("mousedown", (e) => {
     cursor.active = true;
@@ -66,7 +68,7 @@ canvas.addEventListener("mouseup", () => {
     canvas.dispatchEvent(drawingChangedEvent);
 });
 
-// SOURCE: Inspired heavily by https://shoddy-paint.glitch.me/paint1.html
+
 function redraw() {
     if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -93,6 +95,33 @@ clearButton.addEventListener("click", () => {
 });
 app.append(clearButton);
 
+
+// Undo Button Creation
+const undoButton = document.createElement("button");
+undoButton.innerHTML = "Undo";
+undoButton.addEventListener("click", () => {
+    if (lines.length > 0) {    
+        redoLines.push(lines.pop() ?? []);
+        canvas.dispatchEvent(undoEvent);
+    }
+});
+app.append(undoButton);
+
+
+// Redo Button Creation
+const redoButton = document.createElement("button");
+redoButton.innerHTML = "Redo";
+redoButton.addEventListener("click", () => {
+    if (redoLines.length > 0) {    
+        lines.push(redoLines.pop() ?? []);
+        canvas.dispatchEvent(redoEvent);
+    }
+});
+app.append(redoButton);
+
+
 // Event Listeners
 canvas.addEventListener("drawing-changed", redraw);
 canvas.addEventListener("clear", redraw);
+canvas.addEventListener("undo", redraw);
+canvas.addEventListener("redo", redraw);
