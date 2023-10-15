@@ -66,7 +66,7 @@ canvas.addEventListener("mouseup", () => {
     canvas.dispatchEvent(drawingChangedEvent);
 });
 
-// SOURCE: Inspired heavily by https://shoddy-paint.glitch.me/paint1.html (link in D2 slideshow)
+// SOURCE: Inspired heavily by https://shoddy-paint.glitch.me/paint1.html
 function redraw() {
     if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
