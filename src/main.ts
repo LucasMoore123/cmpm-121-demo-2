@@ -2,8 +2,7 @@ import "./style.css";
 
 const app: HTMLDivElement = document.querySelector("#app")!;
 
-const gameName = "My game";
-
+const gameName = "Sticker Sketchpad";
 document.title = gameName;
 
 const header = document.createElement("h1");
