@@ -27,7 +27,7 @@ app.append(document.createElement("br"));
 // Drawing Logic
 // SOURCE: Chat GPT Prompt: "How can I create an array of arrays of points in TypeScript?"
 // SOURCE: Inspired heavily by https://shoddy-paint.glitch.me/paint1.html (link in D2 slideshow)
-const lines: { x: number, y: number}[][] = []
+const lines: { x: number, y: number }[][] = [];
 const redoLines: { x: number, y: number }[][] = [];
 
 let currentLine: { x: number, y: number }[] | null = null;
