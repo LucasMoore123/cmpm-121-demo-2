@@ -1,5 +1,4 @@
 import "./style.css";
-
 const app: HTMLDivElement = document.querySelector("#app")!;
 
 const gameName = "Sticker Sketchpad";
@@ -19,109 +18,142 @@ canvas.style.border = "2px solid black";
 canvas.style.borderRadius = "15px";
 canvas.style.boxShadow = "10px 10px 10px rgba(220, 198, 255, 0.7)";
 app.append(canvas);
-const ctx = canvas.getContext("2d");
 
-// Separate canvas and clear
-app.append(document.createElement("br"));
+// Based on code from: https://shoddy-paint.glitch.me/paint2.html
+// Altered to fit our project description and needs
+// All code past this point follows the design from link above
+const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
+const commands: LineCommand[] = [];
+const redoCommands: LineCommand[] = [];
 
-// Drawing Logic
-// SOURCE: Chat GPT Prompt: "How can I create an array of arrays of points in TypeScript?"
-// SOURCE: Inspired heavily by https://shoddy-paint.glitch.me/paint1.html (link in D2 slideshow)
-const lines: { x: number, y: number }[][] = [];
-const redoLines: { x: number, y: number }[][] = [];
+let cursorCommand: CursorCommand | null = null;
 
-let currentLine: { x: number, y: number }[] | null = null;
+const bus: EventTarget = new EventTarget();
 
-const cursor = { active: false, x: 0, y: 0 };
+function notify(name: string) {
+    bus.dispatchEvent(new Event(name));
+}
 
-const drawingChangedEvent = new Event("drawing-changed");
-const clearEvent = new Event("clear");
-const undoEvent = new Event("undo");
-const redoEvent = new Event("redo");
+function redraw() {
+    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    if (ctx) {
+        commands.forEach((cmd) => cmd.display(ctx));
+        if (cursorCommand) {
+            cursorCommand.display(ctx);
+        }
+    }
+}
 
-canvas.addEventListener("mousedown", (e) => {
-    cursor.active = true;
-    cursor.x = e.offsetX;
-    cursor.y = e.offsetY;
-    currentLine = [];
-    lines.push(currentLine);
-    redoLines.splice(0, redoLines.length);
-    currentLine.push({ x: cursor.x, y: cursor.y });
+bus.addEventListener("drawing-changed", redraw);
+bus.addEventListener("cursor-changed", redraw);
 
-    canvas.dispatchEvent(drawingChangedEvent);
+class LineCommand {
+    private points: { x: number; y: number }[];
+
+    constructor(initialX: number, initialY: number) {
+        this.points = [{ x: initialX, y: initialY }];
+    }
+    display(ctx: CanvasRenderingContext2D) {
+        ctx.beginPath();
+        const { x, y } = this.points[0];
+        ctx.moveTo(x, y);
+        for (const { x, y } of this.points) {
+            ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+    drag(x: number, y: number) {
+        this.points.push({ x, y });
+    }
+}
+
+class CursorCommand {
+    x: number;
+    y: number;
+    constructor(initialX: number, initialY: number) {
+        this.x = initialX;
+        this.y = initialY;
+    }
+    display(ctx: CanvasRenderingContext2D) {
+        ctx.font = "16px monospace";
+        ctx.fillText(".", this.x-4, this.y);
+    }
+}
+
+let currentLineCommand: LineCommand | null = null;
+
+canvas.addEventListener("mouseout", () => {
+    cursorCommand = null;
+    notify("cursor-changed");
+});
+
+canvas.addEventListener("mouseenter", (e) => {
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
+    notify("cursor-changed");
 });
 
 canvas.addEventListener("mousemove", (e) => {
-    if (cursor.active) {
-        cursor.x = e.offsetX;
-        cursor.y = e.offsetY;
-        if (currentLine) {
-            currentLine.push({ x: cursor.x, y: cursor.y });
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
+    notify("cursor-changed");
+
+    if (e.buttons == 1) {
+        if (currentLineCommand) {
+            currentLineCommand.drag(e.offsetX, e.offsetY);
+            notify("drawing-changed");
         }
-        canvas.dispatchEvent(drawingChangedEvent);
+    }
+});
+
+canvas.addEventListener("mousedown", (e) => {
+    currentLineCommand = new LineCommand(e.offsetX, e.offsetY);
+    commands.push(currentLineCommand);
+    redoCommands.splice(0, redoCommands.length);
+    notify("cursor-changed");
+
+    if (e.buttons == 1) {
+        if (currentLineCommand) {
+            currentLineCommand.drag(e.offsetX, e.offsetY);
+            notify("drawing-changed");
+        }
     }
 });
 
 canvas.addEventListener("mouseup", () => {
-    cursor.active = false;
-    currentLine = null;
-    canvas.dispatchEvent(drawingChangedEvent);
+    currentLineCommand = null;
+    notify("drawing-changed");
 });
 
-
-function redraw() {
-    if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for (const line of lines) {
-            if (line.length > 1) {
-                ctx.beginPath();
-                const { x, y } = line[0];
-                ctx.moveTo(x, y);
-                for (const { x, y } of line) {
-                    ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            }
-        }
-    }
-}
+// Separate canvas and clear
+app.append(document.createElement("br"));
 
 // Clear Button Creation
 const clearButton = document.createElement("button");
 clearButton.innerHTML = "Clear";
 clearButton.addEventListener("click", () => {
-    lines.length = 0;
-    canvas.dispatchEvent(clearEvent);
+    commands.splice(0, commands.length);
+    notify("drawing-changed");
 });
 app.append(clearButton);
 
-
 // Undo Button Creation
+// CHAT GPT PROMPT: Why do I get this error? (pasted error message when no ! at end of redoCommands.push(commands.pop()!);)
 const undoButton = document.createElement("button");
 undoButton.innerHTML = "Undo";
 undoButton.addEventListener("click", () => {
-    if (lines.length > 0) {    
-        redoLines.push(lines.pop() ?? []);
-        canvas.dispatchEvent(undoEvent);
+    if (commands.length > 0) {
+        redoCommands.push(commands.pop()!);
+        notify("drawing-changed");
     }
 });
 app.append(undoButton);
 
-
-// Redo Button Creation
+// Clear Button Creation
 const redoButton = document.createElement("button");
 redoButton.innerHTML = "Redo";
 redoButton.addEventListener("click", () => {
-    if (redoLines.length > 0) {    
-        lines.push(redoLines.pop() ?? []);
-        canvas.dispatchEvent(redoEvent);
+    if (redoCommands.length > 0) {
+        commands.push(redoCommands.pop()!);
+        notify("drawing-changed");
     }
 });
 app.append(redoButton);
-
-
-// Event Listeners
-canvas.addEventListener("drawing-changed", redraw);
-canvas.addEventListener("clear", redraw);
-canvas.addEventListener("undo", redraw);
-canvas.addEventListener("redo", redraw);
