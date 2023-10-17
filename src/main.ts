@@ -9,6 +9,31 @@ const header = document.createElement("h1");
 header.innerHTML = gameName;
 app.append(header);
 
+// Thin Button Creation
+let isThinMarkerSelected = true;
+const thinButton = document.createElement("button");
+thinButton.innerHTML = "thin";
+thinButton.addEventListener("click", () => {
+    isThinMarkerSelected = true;
+    thinButton.classList.add("selected-button");
+    thickButton.classList.remove("selected-button");
+    thinButton.classList.remove("deselected-button");
+    thickButton.classList.add("deselected-button");
+});
+app.append(thinButton);
+
+// Thick Button Creation
+const thickButton = document.createElement("button");
+thickButton.innerHTML = "thick";
+thickButton.addEventListener("click", () => {
+    isThinMarkerSelected = false;
+    thickButton.classList.add("selected-button");
+    thinButton.classList.remove("selected-button");
+    thickButton.classList.remove("deselected-button");
+    thinButton.classList.add("deselected-button");
+});
+app.append(thickButton);
+
 // Canvas Creation
 const canvas = document.createElement("canvas");
 canvas.width = 256;
@@ -37,26 +62,33 @@ function notify(name: string) {
 function redraw() {
     ctx?.clearRect(0, 0, canvas.width, canvas.height);
     if (ctx) {
-        commands.forEach((cmd) => cmd.display(ctx));
+        commands.forEach((cmd) => {
+            ctx.lineWidth = cmd.markerThickness;
+            cmd.display(ctx);
+        });
         if (cursorCommand) {
             cursorCommand.display(ctx);
         }
     }
 }
 
-bus.addEventListener("drawing-changed", redraw);
-bus.addEventListener("cursor-changed", redraw);
+bus.addEventListener("drawing-changed", () => redraw());
+bus.addEventListener("cursor-changed", () => redraw());
+
 
 class LineCommand {
     private points: { x: number; y: number }[];
+    public markerThickness: number;
 
-    constructor(initialX: number, initialY: number) {
+    constructor(initialX: number, initialY: number, thickness: number) {
         this.points = [{ x: initialX, y: initialY }];
+        this.markerThickness = thickness;
     }
     display(ctx: CanvasRenderingContext2D) {
         ctx.beginPath();
         const { x, y } = this.points[0];
         ctx.moveTo(x, y);
+        ctx.lineWidth = this.markerThickness;
         for (const { x, y } of this.points) {
             ctx.lineTo(x, y);
         }
@@ -105,7 +137,8 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mousedown", (e) => {
-    currentLineCommand = new LineCommand(e.offsetX, e.offsetY);
+    const markerThickness = isThinMarkerSelected ? 2 : 5;
+    currentLineCommand = new LineCommand(e.offsetX, e.offsetY, markerThickness);
     commands.push(currentLineCommand);
     redoCommands.splice(0, redoCommands.length);
     notify("cursor-changed");
