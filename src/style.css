@@ -81,11 +81,11 @@ button:focus-visible {
 }
 
 .selected-button {
-  background-color: #007bff;
-  color: white;
+  background-color: #000000;
+  color: #ffffff;
 }
 
 .deselected-button {
-  background-color: #000000;
-  color: #007bff;
+  background-color: #ffffff;
+  color: #000000;
 }
