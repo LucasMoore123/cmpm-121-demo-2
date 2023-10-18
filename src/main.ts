@@ -13,6 +13,7 @@ app.append(header);
 let isThinMarkerSelected = true;
 const thinButton = document.createElement("button");
 thinButton.innerHTML = "thin";
+// Updates the buttons so thin is the one selected.
 thinButton.addEventListener("click", () => {
     isThinMarkerSelected = true;
     thinButton.classList.add("selected-button");
@@ -25,6 +26,7 @@ app.append(thinButton);
 // Thick Button Creation
 const thickButton = document.createElement("button");
 thickButton.innerHTML = "thick";
+// Updates the buttons so thick is the one selected.
 thickButton.addEventListener("click", () => {
     isThinMarkerSelected = false;
     thickButton.classList.add("selected-button");
@@ -33,6 +35,12 @@ thickButton.addEventListener("click", () => {
     thinButton.classList.add("deselected-button");
 });
 app.append(thickButton);
+
+// Makes thin button highlighted at start
+thinButton.classList.add("selected-button");
+thickButton.classList.remove("selected-button");
+thinButton.classList.remove("deselected-button");
+thickButton.classList.add("deselected-button");
 
 // Canvas Creation
 const canvas = document.createElement("canvas");
@@ -44,21 +52,22 @@ canvas.style.borderRadius = "15px";
 canvas.style.boxShadow = "10px 10px 10px rgba(220, 198, 255, 0.7)";
 app.append(canvas);
 
-// Based on code from: https://shoddy-paint.glitch.me/paint2.html
-// Altered to fit our project description and needs
-// All code past this point follows the design from link above
+// Initial design based on ideas from: https://shoddy-paint.glitch.me/paint2.html
+// Initializes canvas and commands
 const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
 const commands: LineCommand[] = [];
 const redoCommands: LineCommand[] = [];
 
 let cursorCommand: CursorCommand | null = null;
 
+// Creates event bus to handle all event calls
 const bus: EventTarget = new EventTarget();
 
 function notify(name: string) {
     bus.dispatchEvent(new Event(name));
 }
 
+// Redraws the canvas
 function redraw() {
     ctx?.clearRect(0, 0, canvas.width, canvas.height);
     if (ctx) {
@@ -66,15 +75,40 @@ function redraw() {
             ctx.lineWidth = cmd.markerThickness;
             cmd.display(ctx);
         });
+        if (toolPreview) {
+            toolPreview.draw(ctx);
+        }
         if (cursorCommand) {
             cursorCommand.display(ctx);
         }
     }
 }
 
+// Sends commands based on drawing and cursor movement
 bus.addEventListener("drawing-changed", () => redraw());
 bus.addEventListener("cursor-changed", () => redraw());
+bus.addEventListener("tool-moved", () => redraw());
 
+// Creates preview of drawing tool
+class ToolPreview {
+    x: number;
+    y: number;
+    markerThickness: number;
+    constructor(x: number, y: number, markerThickness: number) {
+        this.x = x;
+        this.y = y;
+        this.markerThickness = markerThickness;
+    }
+    draw(ctx: CanvasRenderingContext2D) {
+        ctx.beginPath();
+        const radius = this.markerThickness / 2;
+        ctx.ellipse(this.x, this.y, radius, radius, 0, 0, 2 * Math.PI);
+        ctx.lineWidth = this.markerThickness;
+        ctx.stroke();
+    }
+}
+
+let toolPreview: ToolPreview | null = null;
 
 class LineCommand {
     private points: { x: number; y: number }[];
@@ -99,6 +133,7 @@ class LineCommand {
     }
 }
 
+
 class CursorCommand {
     x: number;
     y: number;
@@ -114,6 +149,16 @@ class CursorCommand {
 
 let currentLineCommand: LineCommand | null = null;
 
+function handleToolMovement(x: number, y: number) {
+    if (!toolPreview) {
+        toolPreview = new ToolPreview(x, y, isThinMarkerSelected ? 2 : 5);
+    } else {
+        toolPreview.x = x;
+        toolPreview.y = y;
+    }
+    bus.dispatchEvent(new Event("tool-moved"));
+}
+
 canvas.addEventListener("mouseout", () => {
     cursorCommand = null;
     notify("cursor-changed");
@@ -125,12 +170,16 @@ canvas.addEventListener("mouseenter", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-    cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
-    notify("cursor-changed");
+    const x = e.offsetX;
+    const y = e.offsetY;
+
+    if (e.buttons === 0) {
+        handleToolMovement(x, y);
+    }
 
     if (e.buttons == 1) {
         if (currentLineCommand) {
-            currentLineCommand.drag(e.offsetX, e.offsetY);
+            currentLineCommand.drag(x, y);
             notify("drawing-changed");
         }
     }
@@ -145,6 +194,10 @@ canvas.addEventListener("mousedown", (e) => {
 
     if (e.buttons == 1) {
         if (currentLineCommand) {
+            if (toolPreview) {
+                ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                toolPreview = null;
+            }
             currentLineCommand.drag(e.offsetX, e.offsetY);
             notify("drawing-changed");
         }
