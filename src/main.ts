@@ -1,4 +1,5 @@
 import "./style.css";
+
 const app: HTMLDivElement = document.querySelector("#app")!;
 
 const gameName = "Sticker Sketchpad";
@@ -15,11 +16,14 @@ const thinButton = document.createElement("button");
 thinButton.innerHTML = "thin";
 // Updates the buttons so thin is the one selected.
 thinButton.addEventListener("click", () => {
-    isThinMarkerSelected = true;
-    thinButton.classList.add("selected-button");
-    thickButton.classList.remove("selected-button");
-    thinButton.classList.remove("deselected-button");
-    thickButton.classList.add("deselected-button");
+  isThinMarkerSelected = true;
+  selectedSticker = null;
+  thinButton.classList.add("selected-button");
+  thickButton.classList.remove("selected-button");
+  thinButton.classList.remove("deselected-button");
+  thickButton.classList.add("deselected-button");
+  notify("tool-moved");
+  toolPreview = new ToolPreview(0, 0, isThinMarkerSelected ? 2 : 5);
 });
 app.append(thinButton);
 
@@ -28,13 +32,30 @@ const thickButton = document.createElement("button");
 thickButton.innerHTML = "thick";
 // Updates the buttons so thick is the one selected.
 thickButton.addEventListener("click", () => {
-    isThinMarkerSelected = false;
-    thickButton.classList.add("selected-button");
-    thinButton.classList.remove("selected-button");
-    thickButton.classList.remove("deselected-button");
-    thinButton.classList.add("deselected-button");
+  isThinMarkerSelected = false;
+  selectedSticker = null;
+  thickButton.classList.add("selected-button");
+  thinButton.classList.remove("selected-button");
+  thickButton.classList.remove("deselected-button");
+  thinButton.classList.add("deselected-button");
+  notify("tool-moved");
+  toolPreview = new ToolPreview(0, 0, isThinMarkerSelected ? 2 : 5);
 });
 app.append(thickButton);
+
+// Sticker Button Creation
+const stickerButtons = ["🌟", "🍀", "🌈"];
+let selectedSticker: string | null = null;
+
+stickerButtons.forEach((sticker) => {
+  const stickerButton = document.createElement("button");
+  stickerButton.innerHTML = sticker;
+  stickerButton.addEventListener("click", () => {
+    selectedSticker = sticker;
+    notify("tool-moved");
+  });
+  app.append(stickerButton);
+});
 
 // Makes thin button highlighted at start
 thinButton.classList.add("selected-button");
@@ -52,11 +73,17 @@ canvas.style.borderRadius = "15px";
 canvas.style.boxShadow = "10px 10px 10px rgba(220, 198, 255, 0.7)";
 app.append(canvas);
 
+// Credit: Michael Leung: "Creating your own custom interface is a good idea"
+interface Command {
+  display(ctx: CanvasRenderingContext2D): void;
+  drag?(x: number, y: number): void; // drag is optional
+}
+
 // Initial design based on ideas from: https://shoddy-paint.glitch.me/paint2.html
 // Initializes canvas and commands
 const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
-const commands: LineCommand[] = [];
-const redoCommands: LineCommand[] = [];
+const commands: Command[] = [];
+const redoCommands: Command[] = [];
 
 let cursorCommand: CursorCommand | null = null;
 
@@ -64,24 +91,26 @@ let cursorCommand: CursorCommand | null = null;
 const bus: EventTarget = new EventTarget();
 
 function notify(name: string) {
-    bus.dispatchEvent(new Event(name));
+  bus.dispatchEvent(new Event(name));
 }
 
 // Redraws the canvas
 function redraw() {
-    ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    if (ctx) {
-        commands.forEach((cmd) => {
-            ctx.lineWidth = cmd.markerThickness;
-            cmd.display(ctx);
-        });
-        if (toolPreview) {
-            toolPreview.draw(ctx);
-        }
-        if (cursorCommand) {
-            cursorCommand.display(ctx);
-        }
+  ctx?.clearRect(0, 0, canvas.width, canvas.height);
+  if (ctx) {
+    commands.forEach((cmd) => {
+      if (cmd instanceof LineCommand) {
+        ctx.lineWidth = cmd.markerThickness;
+      }
+      cmd.display(ctx);
+    });
+    if (toolPreview) {
+      toolPreview.draw(ctx);
     }
+    if (cursorCommand) {
+      cursorCommand.display(ctx);
+    }
+  }
 }
 
 // Sends commands based on drawing and cursor movement
@@ -91,122 +120,179 @@ bus.addEventListener("tool-moved", () => redraw());
 
 // Creates preview of drawing tool
 class ToolPreview {
-    x: number;
-    y: number;
-    markerThickness: number;
-    constructor(x: number, y: number, markerThickness: number) {
-        this.x = x;
-        this.y = y;
-        this.markerThickness = markerThickness;
-    }
-    draw(ctx: CanvasRenderingContext2D) {
-        ctx.beginPath();
-        const radius = this.markerThickness / 2;
-        ctx.ellipse(this.x, this.y, radius, radius, 0, 0, 2 * Math.PI);
-        ctx.lineWidth = this.markerThickness;
-        ctx.stroke();
-    }
+  x: number;
+  y: number;
+  markerThickness: number;
+  constructor(x: number, y: number, markerThickness: number) {
+    this.x = x;
+    this.y = y;
+    this.markerThickness = markerThickness;
+  }
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.beginPath();
+    const radius = this.markerThickness / 2;
+    ctx.ellipse(this.x, this.y, radius, radius, 0, 0, 2 * Math.PI);
+    ctx.lineWidth = this.markerThickness;
+    ctx.stroke();
+  }
 }
 
 let toolPreview: ToolPreview | null = null;
 
-class LineCommand {
-    private points: { x: number; y: number }[];
-    public markerThickness: number;
+class LineCommand implements Command {
+  private points: { x: number; y: number }[];
+  public markerThickness: number;
 
-    constructor(initialX: number, initialY: number, thickness: number) {
-        this.points = [{ x: initialX, y: initialY }];
-        this.markerThickness = thickness;
+  constructor(initialX: number, initialY: number, thickness: number) {
+    this.points = [{ x: initialX, y: initialY }];
+    this.markerThickness = thickness;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.beginPath();
+    const { x, y } = this.points[0];
+    ctx.moveTo(x, y);
+    ctx.lineWidth = this.markerThickness;
+    for (const { x, y } of this.points) {
+      ctx.lineTo(x, y);
     }
-    display(ctx: CanvasRenderingContext2D) {
-        ctx.beginPath();
-        const { x, y } = this.points[0];
-        ctx.moveTo(x, y);
-        ctx.lineWidth = this.markerThickness;
-        for (const { x, y } of this.points) {
-            ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    }
-    drag(x: number, y: number) {
-        this.points.push({ x, y });
-    }
+    ctx.stroke();
+  }
+  drag(x: number, y: number) {
+    this.points.push({ x, y });
+  }
 }
 
+// New class for sticker previewing
+class StickerPreviewCommand {
+  x: number;
+  y: number;
+  sticker: string;
+  constructor(x: number, y: number, sticker: string) {
+    this.x = x;
+    this.y = y;
+    this.sticker = sticker;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.font = "24px monospace";
+    ctx.fillText(this.sticker, this.x, this.y);
+  }
+}
+
+// New class for sticker placements
+class StickerCommand implements Command {
+  x: number;
+  y: number;
+  sticker: string;
+  constructor(x: number, y: number, sticker: string) {
+    this.x = x;
+    this.y = y;
+    this.sticker = sticker;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.font = "24px monospace";
+    ctx.fillText(this.sticker, this.x, this.y);
+  }
+  drag(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+let currentStickerCommand: StickerCommand | null = null;
 
 class CursorCommand {
-    x: number;
-    y: number;
-    constructor(initialX: number, initialY: number) {
-        this.x = initialX;
-        this.y = initialY;
-    }
-    display(ctx: CanvasRenderingContext2D) {
-        ctx.font = "16px monospace";
-        ctx.fillText(".", this.x-4, this.y);
-    }
+  x: number;
+  y: number;
+  constructor(initialX: number, initialY: number) {
+    this.x = initialX;
+    this.y = initialY;
+  }
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.font = "24px monospace";
+    ctx.fillText(".", this.x - 4, this.y);
+  }
 }
 
 let currentLineCommand: LineCommand | null = null;
 
 function handleToolMovement(x: number, y: number) {
-    if (!toolPreview) {
-        toolPreview = new ToolPreview(x, y, isThinMarkerSelected ? 2 : 5);
-    } else {
-        toolPreview.x = x;
-        toolPreview.y = y;
-    }
-    bus.dispatchEvent(new Event("tool-moved"));
+  if (!toolPreview) {
+    toolPreview = new ToolPreview(x, y, isThinMarkerSelected ? 2 : 5);
+  } else {
+    toolPreview.x = x;
+    toolPreview.y = y;
+  }
+  bus.dispatchEvent(new Event("tool-moved"));
 }
 
 canvas.addEventListener("mouseout", () => {
-    cursorCommand = null;
-    notify("cursor-changed");
+  cursorCommand = null;
+  notify("cursor-changed");
 });
 
 canvas.addEventListener("mouseenter", (e) => {
-    cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
-    notify("cursor-changed");
+  cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
+  notify("cursor-changed");
 });
 
 canvas.addEventListener("mousemove", (e) => {
     const x = e.offsetX;
     const y = e.offsetY;
-
+  
+    // Added sticker handling
+    if (selectedSticker && e.buttons === 0) {
+      cursorCommand = new StickerPreviewCommand(x, y, selectedSticker);
+      notify("cursor-changed");
+  
+      // Clear tool preview
+      toolPreview = null;
+      return;
+    }
+  
     if (e.buttons === 0) {
-        handleToolMovement(x, y);
+      handleToolMovement(x, y);
     }
-
+  
     if (e.buttons == 1) {
+      // Check if a sticker is selected, and only then allow drawing
+      if (!selectedSticker) {
         if (currentLineCommand) {
-            currentLineCommand.drag(x, y);
-            notify("drawing-changed");
+          currentLineCommand.drag(x, y);
+          notify("drawing-changed");
         }
+      }
     }
-});
+  });
 
 canvas.addEventListener("mousedown", (e) => {
-    const markerThickness = isThinMarkerSelected ? 2 : 5;
-    currentLineCommand = new LineCommand(e.offsetX, e.offsetY, markerThickness);
-    commands.push(currentLineCommand);
-    redoCommands.splice(0, redoCommands.length);
-    notify("cursor-changed");
+  const markerThickness = isThinMarkerSelected ? 2 : 5;
+  currentLineCommand = new LineCommand(e.offsetX, e.offsetY, markerThickness);
+  commands.push(currentLineCommand);
+  redoCommands.splice(0, redoCommands.length);
+  notify("cursor-changed");
 
-    if (e.buttons == 1) {
-        if (currentLineCommand) {
-            if (toolPreview) {
-                ctx?.clearRect(0, 0, canvas.width, canvas.height);
-                toolPreview = null;
-            }
-            currentLineCommand.drag(e.offsetX, e.offsetY);
-            notify("drawing-changed");
-        }
+  // Added sticker handling
+  if (selectedSticker) {
+    currentStickerCommand = new StickerCommand(e.offsetX, e.offsetY, selectedSticker);
+    commands.push(currentStickerCommand);
+    notify("drawing-changed");
+    return;
+  }
+  if (e.buttons == 1) {
+    if (currentLineCommand) {
+      if (toolPreview) {
+        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+        toolPreview = null;
+      }
+      currentLineCommand.drag(e.offsetX, e.offsetY);
+      notify("drawing-changed");
     }
+  }
 });
 
 canvas.addEventListener("mouseup", () => {
-    currentLineCommand = null;
-    notify("drawing-changed");
+  currentLineCommand = null;
+  notify("drawing-changed");
 });
 
 // Separate canvas and clear
@@ -216,30 +302,29 @@ app.append(document.createElement("br"));
 const clearButton = document.createElement("button");
 clearButton.innerHTML = "Clear";
 clearButton.addEventListener("click", () => {
-    commands.splice(0, commands.length);
-    notify("drawing-changed");
+  commands.splice(0, commands.length);
+  notify("drawing-changed");
 });
 app.append(clearButton);
 
 // Undo Button Creation
-// CHAT GPT PROMPT: Why do I get this error? (pasted error message when no ! at end of redoCommands.push(commands.pop()!);)
 const undoButton = document.createElement("button");
 undoButton.innerHTML = "Undo";
 undoButton.addEventListener("click", () => {
-    if (commands.length > 0) {
-        redoCommands.push(commands.pop()!);
-        notify("drawing-changed");
-    }
+  if (commands.length > 0) {
+    redoCommands.push(commands.pop()!);
+    notify("drawing-changed");
+  }
 });
 app.append(undoButton);
 
-// Clear Button Creation
+// Redo Button Creation
 const redoButton = document.createElement("button");
 redoButton.innerHTML = "Redo";
 redoButton.addEventListener("click", () => {
-    if (redoCommands.length > 0) {
-        commands.push(redoCommands.pop()!);
-        notify("drawing-changed");
-    }
+  if (redoCommands.length > 0) {
+    commands.push(redoCommands.pop()!);
+    notify("drawing-changed");
+  }
 });
 app.append(redoButton);
