@@ -2,7 +2,7 @@ import "./style.css";
 
 const app: HTMLDivElement = document.querySelector("#app")!;
 
-const gameName = "Sticker Sketchpad";
+const gameName = "Kitchen Sketchpad";
 document.title = gameName;
 
 // Game Name Creation
@@ -57,7 +57,7 @@ thickButton.addEventListener("click", () => {
 app.append(thickButton);
 
 // Sticker Button Creation
-const stickerButtons = ["🌟", "🍀", "🌈"];
+const stickerButtons = ["🍳", "🥘", "👨‍🍳"];
 let selectedSticker: string | null = null;
 
 stickerButtons.forEach((sticker) => {
@@ -220,7 +220,7 @@ class StickerPreviewCommand {
     this.sticker = sticker;
   }
   display(ctx: CanvasRenderingContext2D) {
-    ctx.font = "24px monospace";
+    ctx.font = "30px monospace";
     ctx.fillText(this.sticker, this.x, this.y);
   }
 }
@@ -236,7 +236,7 @@ class StickerCommand implements Command {
     this.sticker = sticker;
   }
   display(ctx: CanvasRenderingContext2D) {
-    ctx.font = "24px monospace";
+    ctx.font = "30px monospace";
     ctx.fillText(this.sticker, this.x, this.y);
   }
   drag(x: number, y: number) {
@@ -255,7 +255,7 @@ class CursorCommand {
     this.y = initialY;
   }
   display(ctx: CanvasRenderingContext2D) {
-    ctx.font = "24px monospace";
+    ctx.font = "30px monospace";
     ctx.fillText(".", this.x - 4, this.y);
   }
 }
