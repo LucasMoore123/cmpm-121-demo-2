@@ -82,6 +82,38 @@ customStickerButton.addEventListener("click", () => {
 });
 app.append(customStickerButton);
 
+// Export Button
+const exportButton = document.createElement("button");
+exportButton.innerHTML = "Export";
+exportButton.addEventListener("click", () => {
+  const exportCanvas = document.createElement("canvas");
+  const scaleFactor = 4;
+  exportCanvas.width = canvas.width * scaleFactor;
+  exportCanvas.height = canvas.height * scaleFactor;
+  const exportContext = exportCanvas.getContext("2d");
+  // Scale and create backdrop
+  // ChatGPT prompt: "How do I scale my canvas for exporting using TypeScript?"
+  if (exportContext) {
+    exportContext.scale(scaleFactor, scaleFactor);
+    exportContext.fillStyle = "white";
+    exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+  }
+  
+  // Draw all actions
+  commands.forEach((cmd) => {
+    if (!(cmd instanceof ToolPreview)) {
+      if (exportContext) {
+        cmd.display(exportContext);
+      }
+    }
+  });
+  const anchor = document.createElement("a");
+    anchor.href = exportCanvas.toDataURL("image/png");
+    anchor.download = "sketchpad.png";
+    anchor.click();
+});
+app.append(exportButton);
+
 // Makes thin button highlighted at start
 thinButton.classList.add("selected-button");
 thickButton.classList.remove("selected-button");
