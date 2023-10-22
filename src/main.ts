@@ -10,6 +10,19 @@ const header = document.createElement("h1");
 header.innerHTML = gameName;
 app.append(header);
 
+// Canvas Creation
+const canvas = document.createElement("canvas");
+canvas.width = 256;
+canvas.height = 256;
+canvas.style.backgroundColor = "white";
+canvas.style.border = "2px solid black";
+canvas.style.borderRadius = "15px";
+canvas.style.boxShadow = "10px 10px 10px rgba(220, 198, 255, 0.7)";
+app.append(canvas);
+
+// Separate canvas and clear
+app.append(document.createElement("br"));
+
 // Thin Button Creation
 let isThinMarkerSelected = true;
 const thinButton = document.createElement("button");
@@ -57,21 +70,23 @@ stickerButtons.forEach((sticker) => {
   app.append(stickerButton);
 });
 
+// Custom Sticker Button
+const customStickerButton = document.createElement("button");
+customStickerButton.innerHTML = "Create Custom Sticker";
+customStickerButton.addEventListener("click", () => {
+  const customSticker = prompt("Enter your custom sticker:");
+  if (customSticker !== null) {
+    selectedSticker = customSticker;
+    notify("tool-moved");
+  }
+});
+app.append(customStickerButton);
+
 // Makes thin button highlighted at start
 thinButton.classList.add("selected-button");
 thickButton.classList.remove("selected-button");
 thinButton.classList.remove("deselected-button");
 thickButton.classList.add("deselected-button");
-
-// Canvas Creation
-const canvas = document.createElement("canvas");
-canvas.width = 256;
-canvas.height = 256;
-canvas.style.backgroundColor = "white";
-canvas.style.border = "2px solid black";
-canvas.style.borderRadius = "15px";
-canvas.style.boxShadow = "10px 10px 10px rgba(220, 198, 255, 0.7)";
-app.append(canvas);
 
 // Credit: Michael Leung: "Creating your own custom interface is a good idea"
 interface Command {
@@ -231,8 +246,10 @@ canvas.addEventListener("mouseout", () => {
 });
 
 canvas.addEventListener("mouseenter", (e) => {
-  cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
-  notify("cursor-changed");
+  if (e.buttons === 0) {
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
+    notify("cursor-changed");
+  }
 });
 
 canvas.addEventListener("mousemove", (e) => {
@@ -243,8 +260,6 @@ canvas.addEventListener("mousemove", (e) => {
     if (selectedSticker && e.buttons === 0) {
       cursorCommand = new StickerPreviewCommand(x, y, selectedSticker);
       notify("cursor-changed");
-  
-      // Clear tool preview
       toolPreview = null;
       return;
     }
