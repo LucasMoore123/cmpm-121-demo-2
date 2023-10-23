@@ -20,7 +20,36 @@ canvas.style.borderRadius = "15px";
 canvas.style.boxShadow = "10px 10px 10px rgba(220, 198, 255, 0.7)";
 app.append(canvas);
 
-// Separate canvas and clear
+// Splitter
+app.append(document.createElement("br"));
+
+// Add Color Slider
+// Source: https://www.w3schools.com/howto/howto_js_rangeslider.asp
+let lineColor = "hsl(0, 100%, 50%)";
+const colorSlider = document.createElement("input");
+colorSlider.type = "range";
+colorSlider.id = "colorSlider";
+colorSlider.min = "0";
+colorSlider.max = "360";
+colorSlider.value = "0";
+// CHATGPT Prompt: "How can I convert a slider input into a color value in typescript?"
+colorSlider.addEventListener("input", () => {
+  lineColor = `hsl(${colorSlider.value}, 100%, 50%)`;
+  if (currentLineCommand) {
+    currentLineCommand.updateColor(lineColor);
+  }
+  if (toolPreview) {
+    toolPreview.updateColor(lineColor);
+  }
+});
+const label = document.createElement("label");
+label.textContent = "Line Color:";
+label.htmlFor = "colorSlider";
+
+app.append(label);
+app.append(colorSlider);
+
+// Splitter
 app.append(document.createElement("br"));
 
 // Thin Button Creation
@@ -36,7 +65,7 @@ thinButton.addEventListener("click", () => {
   thinButton.classList.remove("deselected-button");
   thickButton.classList.add("deselected-button");
   notify("tool-moved");
-  toolPreview = new ToolPreview(0, 0, isThinMarkerSelected ? 2 : 5);
+  toolPreview = new ToolPreview(0, 0, isThinMarkerSelected ? 2 : 5, lineColor);
 });
 app.append(thinButton);
 
@@ -52,9 +81,12 @@ thickButton.addEventListener("click", () => {
   thickButton.classList.remove("deselected-button");
   thinButton.classList.add("deselected-button");
   notify("tool-moved");
-  toolPreview = new ToolPreview(0, 0, isThinMarkerSelected ? 2 : 5);
+  toolPreview = new ToolPreview(0, 0, isThinMarkerSelected ? 2 : 5, lineColor);
 });
 app.append(thickButton);
+
+// UI Break
+app.append(document.createElement("br"));
 
 // Sticker Button Creation
 const stickerButtons = ["🍳", "🥘", "👨‍🍳"];
@@ -81,6 +113,9 @@ customStickerButton.addEventListener("click", () => {
   }
 });
 app.append(customStickerButton);
+
+// UI Break
+app.append(document.createElement("br"));
 
 // Export Button
 const exportButton = document.createElement("button");
@@ -170,17 +205,23 @@ class ToolPreview {
   x: number;
   y: number;
   markerThickness: number;
-  constructor(x: number, y: number, markerThickness: number) {
+  color: string;
+  constructor(x: number, y: number, markerThickness: number, color: string) {
     this.x = x;
     this.y = y;
     this.markerThickness = markerThickness;
+    this.color = color;
   }
   draw(ctx: CanvasRenderingContext2D) {
     ctx.beginPath();
     const radius = this.markerThickness / 2;
     ctx.ellipse(this.x, this.y, radius, radius, 0, 0, 2 * Math.PI);
     ctx.lineWidth = this.markerThickness;
+    ctx.strokeStyle = this.color;
     ctx.stroke();
+  }
+  updateColor(color: string) {
+    this.color = color;
   }
 }
 
@@ -189,16 +230,21 @@ let toolPreview: ToolPreview | null = null;
 class LineCommand implements Command {
   private points: { x: number; y: number }[];
   public markerThickness: number;
-
-  constructor(initialX: number, initialY: number, thickness: number) {
+  private color: string;
+  constructor(initialX: number, initialY: number, thickness: number, color: string) {
     this.points = [{ x: initialX, y: initialY }];
     this.markerThickness = thickness;
+    this.color = color;
+  }
+  updateColor(newColor: string) {
+    this.color = newColor;
   }
   display(ctx: CanvasRenderingContext2D) {
     ctx.beginPath();
     const { x, y } = this.points[0];
     ctx.moveTo(x, y);
     ctx.lineWidth = this.markerThickness;
+    ctx.strokeStyle = this.color;
     for (const { x, y } of this.points) {
       ctx.lineTo(x, y);
     }
@@ -256,23 +302,23 @@ class CursorCommand {
   }
   display(ctx: CanvasRenderingContext2D) {
     ctx.font = "30px monospace";
-    ctx.fillText(".", this.x - 4, this.y);
   }
 }
 
 let currentLineCommand: LineCommand | null = null;
 
 function handleToolMovement(x: number, y: number) {
-  if (!toolPreview) {
-    toolPreview = new ToolPreview(x, y, isThinMarkerSelected ? 2 : 5);
-  } else {
-    toolPreview.x = x;
-    toolPreview.y = y;
-  }
+  const markerThickness = isThinMarkerSelected ? 2 : 5;
+  toolPreview = new ToolPreview(x, y, markerThickness, lineColor); // Pass the line color
   bus.dispatchEvent(new Event("tool-moved"));
 }
 
 canvas.addEventListener("mouseout", () => {
+  cursorCommand = null;
+  notify("cursor-changed");
+});
+
+canvas.addEventListener("mouseleave", () => {
   cursorCommand = null;
   notify("cursor-changed");
 });
@@ -313,7 +359,8 @@ canvas.addEventListener("mousemove", (e) => {
 
 canvas.addEventListener("mousedown", (e) => {
   const markerThickness = isThinMarkerSelected ? 2 : 5;
-  currentLineCommand = new LineCommand(e.offsetX, e.offsetY, markerThickness);
+  const currentColor = `hsl(${colorSlider.value}, 100%, 50%)`;
+  currentLineCommand = new LineCommand(e.offsetX, e.offsetY, markerThickness, currentColor);
   commands.push(currentLineCommand);
   redoCommands.splice(0, redoCommands.length);
   notify("cursor-changed");
@@ -341,9 +388,6 @@ canvas.addEventListener("mouseup", () => {
   currentLineCommand = null;
   notify("drawing-changed");
 });
-
-// Separate canvas and clear
-app.append(document.createElement("br"));
 
 // Clear Button Creation
 const clearButton = document.createElement("button");
